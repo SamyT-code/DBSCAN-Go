@@ -121,7 +121,7 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 
 		var seedSet []LabelledGPScoord
 		seedSet = append(seedSet, p)
-		addNeighborstoSeedSet(&seedSet, neighbors) // TRY WITH DIFFERENT POINTERS
+		seedSet = addNeighborstoSeedSet2(seedSet, neighbors) // ALTERNATE METHOD
 
 		for _, q := range seedSet {
 
@@ -139,7 +139,7 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 			neighborsQ := rangeQuery(coords, eps, q)
 
 			if len(neighborsQ) >= MinPts {
-				addNeighborstoSeedSet(&seedSet, neighborsQ) // TRY WITH DIFFERENT POINTERS
+				seedSet = addNeighborstoSeedSet2(seedSet, neighborsQ) // ALTERNATE METHOD
 			}
 
 		}
@@ -153,31 +153,22 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 	return nclusters
 }
 
-// Cette fonction ajoute les voisins de p au seedSet
-func addNeighborstoSeedSet(seedSet *[]LabelledGPScoord, neighbors []LabelledGPScoord) {
+// Cette fonction ajoute les voisins de p au seedSet mais a une valeur de retour
+func addNeighborstoSeedSet2(seedSet []LabelledGPScoord, neighbors []LabelledGPScoord) []LabelledGPScoord {
+
+	var r []LabelledGPScoord
 
 	for _, p := range neighbors { // TRY WITH DIFFERENT KINDS OF PONBTERS
 
-		if !seedSetContainsP(*seedSet, p) {
-			*seedSet = append(*seedSet, p)
+		if !seedSetContainsP(seedSet, p) {
+			r = append(seedSet, p)
 		}
 
 	}
 
+	return r
+
 }
-
-// // Cette fonction ajoute les voisins de p au seedSet
-// func addNeighborstoSeedSet2(seedSet []LabelledGPScoord, neighbors []LabelledGPScoord) {
-
-// 	for _, p := range neighbors { // TRY WITH DIFFERENT KINDS OF PONBTERS
-
-// 		if !seedSetContainsP(seedSet, p) {
-// 			seedSet = append(seedSet, p)
-// 		}
-
-// 	}
-
-// }
 
 // Cette fonction vérifie si une coordonnée p est déjà dans seedSet
 func seedSetContainsP(seedSet []LabelledGPScoord, p LabelledGPScoord) bool {
