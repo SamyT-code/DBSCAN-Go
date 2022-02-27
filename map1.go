@@ -166,6 +166,19 @@ func addNeighborstoSeedSet(seedSet *[]LabelledGPScoord, neighbors []LabelledGPSc
 
 }
 
+// // Cette fonction ajoute les voisins de p au seedSet
+// func addNeighborstoSeedSet2(seedSet []LabelledGPScoord, neighbors []LabelledGPScoord) {
+
+// 	for _, p := range neighbors { // TRY WITH DIFFERENT KINDS OF PONBTERS
+
+// 		if !seedSetContainsP(seedSet, p) {
+// 			seedSet = append(seedSet, p)
+// 		}
+
+// 	}
+
+// }
+
 // Cette fonction vérifie si une coordonnée p est déjà dans seedSet
 func seedSetContainsP(seedSet []LabelledGPScoord, p LabelledGPScoord) bool {
 	for _, q := range seedSet {
