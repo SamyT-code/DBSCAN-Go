@@ -135,17 +135,20 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 	return nclusters
 }
 
-// func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) neigbors []LabelledGPScoord{
+func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []LabelledGPScoord {
 
-// 	for _, p := range coords{
+	var neighbors []LabelledGPScoord
 
-// 		if euclideanDistance(q, p) <= eps {
+	for _, p := range coords {
 
-// 		}
+		if distance2(q.GPScoord, p.GPScoord) <= eps {
+			neighbors = append(neighbors, p)
+		}
 
-// 	}
+	}
+	return neighbors
 
-// }
+}
 
 // Cette méthode trouve la distance euclidienne entre 2 points en 2D.
 func distance4(x1 float64, y1 float64, x2 float64, y2 float64) float64 {
