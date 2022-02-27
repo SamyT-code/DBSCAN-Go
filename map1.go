@@ -112,6 +112,7 @@ func main() {
 
 	for i := 0; i < Threads; i++ {
 		// go consomme(jobs, &wg)
+		go consomme(jobs, mutex)
 	}
 
 	for j := 0; j < N; j++ {
