@@ -11,8 +11,29 @@ import (
 	"math"
 	"os"
 	"strconv"
+
+	// "sync"
 	"time"
 )
+
+type semaphore chan bool
+
+func (s semaphore) Wait(n int) {
+	for i := 0; i < n; i++ {
+		<-s
+	}
+}
+
+func (s semaphore) Signal() {
+	s <- true
+}
+
+type Job struct {
+	id      int
+	minsPts int
+	eps     float64
+	coords  []LabelledGPScoord
+}
 
 type GPScoord struct {
 	lat  float64
@@ -25,6 +46,7 @@ type LabelledGPScoord struct {
 	Label int // cluster ID
 }
 
+const Threads int = 4
 const N int = 4
 const MinPts int = 5
 const eps float64 = 0.0003
@@ -73,16 +95,36 @@ func main() {
 	// This is the non-concurrent procedural version
 	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
 	// And by consumer threads that clusters partitions
-	for j := 0; j < N; j++ {
-		for i := 0; i < N; i++ {
+	// for j := 0; j < N; j++ {
+	// 	for i := 0; i < N; i++ {
 
-			DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
-		}
-	}
+	// 		DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
+	// 	}
+	// }
 
 	// Parallel DBSCAN STEP 2.
 	// Apply DBSCAN on each partition
 	// ...
+	jobs := make(chan Job, 16) // SIZE MIGHT HAVE TO BE 15???
+	// var wg sync.WaitGroup
+	// wg.Add(N * N) // N * N devrait être 16
+	mutex := make(semaphore, N*N)
+
+	for i := 0; i < Threads; i++ {
+		// go consomme(jobs, &wg)
+	}
+
+	for j := 0; j < N; j++ {
+		for i := 0; i < N; i++ {
+			jobs <- Job{i*10000000 + j*1000000, MinPts, eps, grid[i][j]}
+		}
+	}
+
+	close(jobs)
+	fmt.Println("jobs closed")
+	// wg.Wait()
+	mutex.Wait(Threads)
+	fmt.Println("got to wg.Wait")
 
 	// Parallel DBSCAN step 3.
 	// merge clusters
@@ -90,6 +132,27 @@ func main() {
 
 	end := time.Now()
 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
+
+}
+
+// func consomme(jobs chan Job, done *sync.WaitGroup) {
+func consomme(jobs chan Job, sem semaphore) {
+
+	for {
+
+		j, more := <-jobs
+
+		if more {
+			DBscan(j.coords, j.minsPts, j.eps, j.id)
+		} else {
+			// fmt.Println("Done")
+			// done.Done()
+			sem.Signal()
+			return
+		}
+
+	}
+
 }
 
 // Applies DBSCAN algorithm on LabelledGPScoord points
