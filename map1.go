@@ -99,40 +99,82 @@ func main() {
 // returns number of clusters found
 func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (nclusters int) {
 
-	nclusters = 0
+	nclusters = 0 // Ce compteur servira, en partie, à identifier des Clusters
 
-	// for _, p := range coords{
+	for _, p := range coords { // Itérer à travers les coordonnées
 
-	// 	if p.Label != 0 {
-	// 		neighbors n := rangeQuery(coords, eps, p)
-	// 	}
+		if p.Label != 0 { // Si le point p n'est pas 0, alors il a déjà été visité.
+			continue // On peut donc passer au prochain point
+		}
 
-	// }
+		// Créer une slice neighbors qui contiendra tous les voisins de p selon les contraites
+		neighbors := rangeQuery(coords, eps, p)
 
-	// *** fake code: to be rewritten
-	// time.Sleep(3)
-	// nclusters = 0
-	// for i, pt := range coords {
+		if len(neighbors) < MinPts {
+			p.Label = -1 // -1 Signifie que ce point est un "Noise"
+			continue     // On peut donc passer au prochain point
+		}
 
-	// 	if i == 10 {
-	// 		nclusters++
-	// 	}
-	// 	if i == 100 {
-	// 		nclusters++
-	// 	}
-	// 	if i == 100 {
-	// 		break
-	// 	}
+		nclusters++ // Icrémenter le nombre de Clusters
 
-	// 	pt.Label = offset + nclusters
-	// }
-	// *** end of fake code.
+		p.Label = nclusters // Donner à p le nouveau nombre de Clusters
+
+		var seedSet []LabelledGPScoord
+		seedSet = append(seedSet, p)
+		addNeighborstoSeedSet(&seedSet, neighbors) // TRY WITH DIFFERENT POINTERS
+
+		for _, q := range seedSet {
+
+			if q.Label == -1 {
+				q.Label = nclusters
+			}
+
+			if q.Label != 0 { // Si le point q n'est pas 0, alors il a déjà été visité.
+				continue // On peut donc passer au prochain point
+			}
+
+			q.Label = nclusters // Autrement, donner à q le label nClusters
+
+			// Modifier la slice neighbors qui contiendra tous les voisins de q selon les contraites
+			neighborsQ := rangeQuery(coords, eps, q)
+
+			if len(neighborsQ) >= MinPts {
+				addNeighborstoSeedSet(&seedSet, neighborsQ) // TRY WITH DIFFERENT POINTERS
+			}
+
+		}
+
+	}
 
 	// End of DBscan function
 	// Printing the result (do not remove)
 	fmt.Printf("Partition %10d : [%4d,%6d]\n", offset, nclusters, len(coords))
 
 	return nclusters
+}
+
+// Cette fonction ajoute les voisins de p au seedSet
+func addNeighborstoSeedSet(seedSet *[]LabelledGPScoord, neighbors []LabelledGPScoord) {
+
+	for _, p := range neighbors { // TRY WITH DIFFERENT KINDS OF PONBTERS
+
+		if !seedSetContainsP(*seedSet, p) {
+			*seedSet = append(*seedSet, p)
+		}
+
+	}
+
+}
+
+// Cette fonction vérifie si une coordonnée p est déjà dans seedSet
+func seedSetContainsP(seedSet []LabelledGPScoord, p LabelledGPScoord) bool {
+	for _, q := range seedSet {
+		if p == q {
+			return true // Retourne true si p est dans seedSet
+		}
+	}
+
+	return false // Sinon, retourne false
 }
 
 func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []LabelledGPScoord {
