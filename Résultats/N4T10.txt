@@ -1,0 +1,25 @@
+C:\Users\samyt\Desktop\Winter_2022\CSI2520\Projet Integrateur\Partie 2 - Concurrente (Go)>go run map1.go
+N = 4 and 10 consumer threads
+
+Number of points: 232050
+NW:(40.700000 , -74.000000)
+SE:(40.800000 , -73.930000)
+
+Partition    1000000 : [ 413,   540]
+Partition   12000000 : [ 148,   288]
+Partition    2000000 : [ 144,   272]
+Partition    3000000 : [   0,    17]
+Partition   13000000 : [  68,   226]
+Partition   30000000 : [1828,  2015]
+Partition   23000000 : [ 944,  1192]
+Partition   33000000 : [1884,  2187]
+Partition          0 : [6063,  6514]
+Partition   11000000 : [13530, 14022]
+Partition   31000000 : [14772, 15370]
+Partition   32000000 : [15993, 16535]
+Partition   22000000 : [19357, 19940]
+Partition   20000000 : [30918, 31599]
+Partition   10000000 : [38030, 38774]
+Partition   21000000 : [56218, 56611]
+
+Execution time: 16.9928952s of 206102 points
