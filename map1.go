@@ -11,8 +11,6 @@ import (
 	"math"
 	"os"
 	"strconv"
-
-	// "sync"
 	"time"
 )
 
@@ -47,7 +45,7 @@ type LabelledGPScoord struct {
 }
 
 const Threads int = 4
-const N int = 4
+const N int = 2
 const MinPts int = 5
 const eps float64 = 0.0003
 const filename string = "yellow_tripdata_2009-01-15_9h_21h_clean.csv"
@@ -55,6 +53,7 @@ const filename string = "yellow_tripdata_2009-01-15_9h_21h_clean.csv"
 func main() {
 
 	start := time.Now()
+	fmt.Println("N =", N, "and", Threads, "consumer threads \n ")
 
 	gps, minPt, maxPt := readCSVFile(filename)
 	fmt.Printf("Number of points: %d\n", len(gps))
@@ -91,27 +90,12 @@ func main() {
 		}
 	}
 
-	// ***
-	// This is the non-concurrent procedural version
-	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
-	// And by consumer threads that clusters partitions
-	// for j := 0; j < N; j++ {
-	// 	for i := 0; i < N; i++ {
-
-	// 		DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
-	// 	}
-	// }
-
 	// Parallel DBSCAN STEP 2.
 	// Apply DBSCAN on each partition
-	// ...
-	jobs := make(chan Job, 16) // SIZE MIGHT HAVE TO BE 15???
-	// var wg sync.WaitGroup
-	// wg.Add(N * N) // N * N devrait être 16
+	jobs := make(chan Job, N*N) // SIZE MIGHT HAVE TO BE 15???
 	mutex := make(semaphore, N*N)
 
 	for i := 0; i < Threads; i++ {
-		// go consomme(jobs, &wg)
 		go consomme(jobs, mutex)
 	}
 
@@ -122,21 +106,13 @@ func main() {
 	}
 
 	close(jobs)
-	fmt.Println("jobs closed")
-	// wg.Wait()
 	mutex.Wait(Threads)
-	fmt.Println("got to wg.Wait")
-
-	// Parallel DBSCAN step 3.
-	// merge clusters
-	// *DO NOT PROGRAM THIS STEP
 
 	end := time.Now()
 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
 
 }
 
-// func consomme(jobs chan Job, done *sync.WaitGroup) {
 func consomme(jobs chan Job, sem semaphore) {
 
 	for {
