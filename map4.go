@@ -2,12 +2,9 @@
  * CSI2520 Projet intégrateur - Partie 2 (concurrence avec Go)
  * Date: Hiver 2022
  *
- * On vous demande de programmer l’algorithme DBSCAN afin de grouper les différents enregistrements
- * en utilisant les coordonnées GPS des points de départ. Votre programme doit être une application Java
- * appelée TaxiClusters prenant en paramètre le nom du fichier contenant la base de données à
- * analyser, suivi des paramètres minPts et eps. Le programme produira en sortie la liste des groupes
- * dans un fichier csv donnant, pour chaque groupe, sa position (valeur moyenne des coordonnées de ses
- * points) et son nombre de points. Les points isolés sont ignorés.
+ * Pour la version Go de votre projet, nous vous demandons d’exécuter, de façon concurrente, l’algorithme
+ * DBSCAN sur des partitions des données de courses de taxis. Afin de créer ces partitions, vous devez
+ * subdiviser le secteur géographique en une grille de NxN cellules.
  *
  * */
 
@@ -31,13 +28,13 @@ import (
 
 type semaphore chan bool // Utiliser une sémaphore pour la synchronisation
 
-func (s semaphore) Wait(n int) {
+func (s semaphore) Wait(n int) { // Méthode Wait des sémaphores
 	for i := 0; i < n; i++ {
 		<-s
 	}
 }
 
-func (s semaphore) Signal() {
+func (s semaphore) Signal() { // Méthode Signal des démaphores
 	s <- true
 }
 
@@ -61,7 +58,7 @@ type LabelledGPScoord struct {
 	Label int // cluster ID
 }
 
-const Threads int = 4
+const Threads int = 4 // Cette constante est utilisée pour créer #Threads fils consommateurs
 const N int = 4
 const MinPts int = 5
 const eps float64 = 0.0003
@@ -107,23 +104,12 @@ func main() {
 		}
 	}
 
-	// ***
-	// This is the non-concurrent procedural version
-	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
-	// And by consumer threads that clusters partitions
-	// for j := 0; j < N; j++ {
-	// 	for i := 0; i < N; i++ {
-
-	// 		DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
-	// 	}
-	// }
-
 	// Parallel DBSCAN STEP 2.
 	// Apply DBSCAN on each partition
 	jobs := make(chan Job, N*N)   // jobs est un channel de Job
 	mutex := make(semaphore, N*N) // mutex pour la synchronisation
 
-	for i := 0; i < Threads; i++ { // Créer autant de go routines que de threads specifiés dans la constante plus haut
+	for i := 0; i < Threads; i++ { // Créer autant de go routines que de #Threads specifiés dans la constante plus haut
 		go consomme(jobs, mutex)
 	}
 
@@ -134,7 +120,7 @@ func main() {
 		}
 	}
 
-	close(jobs)
+	close(jobs) // Fermer le channel jobs
 
 	mutex.Wait(Threads) // wait for consumers to terminate
 
@@ -188,20 +174,13 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 
 		coords[i].Label = nclusters // Donner à p le nouveau nombre de Clusters MAYBE DELETE THIS??
 
-		var seedSet []*LabelledGPScoord
+		var seedSet []*LabelledGPScoord // Voisins àa étendre
 		seedSet = append(seedSet, neighbors...)
-		// *seedSet = append(*seedSet, coords[i])
-		// for j := 0; j < len(neighbors); j++{
-		// 	*seedSet = append(*seedSet, *neighbors[j])
-		// }
-
-		// addNeighborstoSeedSet2(seedSet, neighbors) // ALTERNATE METHOD
 
 		for j := 0; j < len(seedSet); j++ {
 
-			if (seedSet)[j].Label == -1 {
-				(seedSet)[j].Label = nclusters
-				// fmt.Println("label change")
+			if seedSet[j].Label == -1 { // Si le point était un "Noise"", lui enlever ce statut de "Noise"
+				seedSet[j].Label = nclusters
 			}
 
 			if (seedSet)[j].Label != 0 { // Si le point q n'est pas 0, alors il a déjà été visité.
@@ -213,11 +192,9 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 			// Modifier la slice neighbors qui contiendra tous les voisins de q selon les contraites
 			neighborsQ := rangeQuery(coords, eps, *seedSet[j])
 
+			// Si neighborsQ countient suffisament de voisins, l'ajouter à seedSet
 			if len(neighborsQ) >= MinPts {
-				// addNeighborstoSeedSet2(seedSet, neighborsQ) // ALTERNATE METHOD
 				seedSet = append(seedSet, neighborsQ...)
-				// seedSet = removeDuplicate(seedSet)
-
 			}
 
 		}
@@ -231,56 +208,15 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 	return nclusters
 }
 
-func removeDuplicate(slice *[]LabelledGPScoord) []LabelledGPScoord {
-	allKeys := make(map[LabelledGPScoord]bool)
-	list := []LabelledGPScoord{}
-	for _, item := range *slice {
-		if _, value := allKeys[item]; !value {
-			allKeys[item] = true
-			list = append(list, item)
-		}
-	}
-	return list
-}
-
-// Cette fonction ajoute les voisins de p au seedSet mais a une valeur de retour
-func addNeighborstoSeedSet2(seedSet *[]LabelledGPScoord, neighbors *[]LabelledGPScoord) {
-
-	// var r []*LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
-
-	for i := 0; i < len(*neighbors); i++ { // Itérer à travers neighbours
-
-		if !seedSetContainsP(*seedSet, (*neighbors)[i]) { // Si le seedSet ne contient pas p
-			*seedSet = append(*seedSet, (*neighbors)[i]) // Alors, ajouter p au seedSet
-		}
-
-	}
-
-	// return seedSet // Retourner seedset avec les voisins
-
-}
-
-// Cette fonction vérifie si une coordonnée p est déjà dans seedSet
-func seedSetContainsP(seedSet []LabelledGPScoord, p LabelledGPScoord) bool {
-	for i := range seedSet {
-		if p == seedSet[i] {
-			return true // Retourne true si p est dans seedSet
-		}
-	}
-
-	return false // Sinon, retourne false
-}
-
 // Cette méthode détermine qui sont les points voisins d'un point
 func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*LabelledGPScoord {
 
 	var neighbors []*LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
 
-	for i := range coords {
+	for i := range coords { // Itérer à travers chaque point dans la base de données
 
-		if coords[i].ID != q.ID && distance2(q.GPScoord, coords[i].GPScoord) <= eps {
-			// if distance2(q.GPScoord, coords[i].GPScoord) <= eps {
-			neighbors = append(neighbors, &coords[i])
+		if coords[i].ID != q.ID && distance2(q.GPScoord, coords[i].GPScoord) <= eps { // Évaluer la distance et vérifier epsilon
+			neighbors = append(neighbors, &coords[i]) // Ajouter coords[i] à neighbors
 		}
 
 	}
