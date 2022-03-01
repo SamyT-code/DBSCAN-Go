@@ -329,7 +329,7 @@ func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*L
 
 	for i := range coords {
 
-		// if p.ID != q.ID && distance2(q.GPScoord, p.GPScoord) <= eps {
+		// if coords[i].ID != q.ID && distance2(q.GPScoord, coords[i].GPScoord) <= eps {
 		if distance2(q.GPScoord, coords[i].GPScoord) <= eps {
 			neighbors = append(neighbors, &coords[i])
 		}
