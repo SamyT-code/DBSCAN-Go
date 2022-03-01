@@ -8,6 +8,7 @@
  *
  * */
 
+// Modification et complétion du ficher de Robert Laganière:
 // Project CSI2120/CSI2520
 // Winter 2022
 // Robert Laganiere, uottawa.ca
@@ -34,7 +35,7 @@ func (s semaphore) Wait(n int) { // Méthode Wait des sémaphores
 	}
 }
 
-func (s semaphore) Signal() { // Méthode Signal des démaphores
+func (s semaphore) Signal() { // Méthode Signal des sémaphores
 	s <- true
 }
 
@@ -58,7 +59,7 @@ type LabelledGPScoord struct {
 	Label int // cluster ID
 }
 
-const Threads int = 4 // Cette constante est utilisée pour créer #Threads fils consommateurs
+const Threads int = 1 // Cette constante est utilisée pour créer #Threads fils consommateurs
 const N int = 4
 const MinPts int = 5
 const eps float64 = 0.0003
@@ -131,20 +132,15 @@ func main() {
 
 // Fonction consomme modifiée à partir du fichier prodcons.go fourni
 func consomme(jobs chan Job, sem semaphore) {
-
 	for {
-
 		j, more := <-jobs
-
 		if more {
 			DBscan(j.coords, j.minsPts, j.eps, j.id)
 		} else {
 			sem.Signal()
 			return
 		}
-
 	}
-
 }
 
 // Applies DBSCAN algorithm on LabelledGPScoord points
@@ -208,7 +204,12 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 	return nclusters
 }
 
-// Cette méthode détermine qui sont les points voisins d'un point
+// Applies RangeQuery helper function for DBSCAN algorithm
+// LabelledGPScoord: the slice of LabelledGPScoord points
+// eps: parameter for the RangeQuery algorithm (minimum distance between 2 points)
+// q: LabelledGPScoord that is the "core" of the "neighborhood"
+// returns pointer to  a slice of LabelledGPScoord
+// EN RÉSUMÉ: Cette méthode détermine qui sont les points voisins d'un point et retourne l'ensemble des voisins
 func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*LabelledGPScoord {
 
 	var neighbors []*LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
@@ -224,12 +225,14 @@ func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*L
 
 }
 
-// Cette méthode trouve la distance euclidienne entre 2 points en 2D.
+// x1, y1, x2, y2: paramètres pour cet l'algorithme de distance
+// Cette méthode trouve la distance euclidienne entre 2 points en 2D et la retourne. https://en.wikipedia.org/wiki/Euclidean_distance
 func distance4(x1 float64, y1 float64, x2 float64, y2 float64) float64 {
-	return math.Sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1))
+	return math.Sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1)) // Utilise
 }
 
-// Cette méthode ce sert de la méthode distance4(...) pour trouver la distance entre 2 GPScoord.
+// x, y: paramètres pour cet l'algorithme de distance
+// Cette méthode ce sert de la méthode distance4(...) pour trouver la distance entre 2 GPScoord et la retourne.
 func distance2(x GPScoord, y GPScoord) float64 {
 	return distance4(x.lat, x.long, y.lat, y.long)
 }
