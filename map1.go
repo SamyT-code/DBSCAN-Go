@@ -59,16 +59,81 @@ type LabelledGPScoord struct {
 	Label int // cluster ID
 }
 
-const Threads int = 16
+const Threads int = 1
 const N int = 4
 const MinPts int = 5
 const eps float64 = 0.0003
 const filename string = "yellow_tripdata_2009-01-15_9h_21h_clean.csv"
 
+// func main() {
+
+// 	start := time.Now()
+// 	fmt.Println("N =", N, "and", Threads, "consumer threads \n ")
+
+// 	gps, minPt, maxPt := readCSVFile(filename)
+// 	fmt.Printf("Number of points: %d\n", len(gps))
+
+// 	minPt = GPScoord{-74., 40.7}
+// 	maxPt = GPScoord{-73.93, 40.8}
+
+// 	// geographical limits
+// 	fmt.Printf("NW:(%f , %f)\n", minPt.long, minPt.lat)
+// 	fmt.Printf("SE:(%f , %f) \n\n", maxPt.long, maxPt.lat)
+
+// 	// Parallel DBSCAN STEP 1.
+// 	incx := (maxPt.long - minPt.long) / float64(N)
+// 	incy := (maxPt.lat - minPt.lat) / float64(N)
+
+// 	var grid [N][N][]LabelledGPScoord // a grid of GPScoord slices
+
+// 	// Create the partition
+// 	// triple loop! not very efficient, but easier to understand
+
+// 	partitionSize := 0
+// 	for j := 0; j < N; j++ {
+// 		for i := 0; i < N; i++ {
+
+// 			for _, pt := range gps {
+
+// 				// is it inside the expanded grid cell
+// 				if (pt.long >= minPt.long+float64(i)*incx-eps) && (pt.long < minPt.long+float64(i+1)*incx+eps) && (pt.lat >= minPt.lat+float64(j)*incy-eps) && (pt.lat < minPt.lat+float64(j+1)*incy+eps) {
+
+// 					grid[i][j] = append(grid[i][j], pt) // add the point to this slide
+// 					partitionSize++
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	// Parallel DBSCAN STEP 2.
+// 	// Apply DBSCAN on each partition
+// 	jobs := make(chan Job, N*N)   // jobs est un channel de Job
+// 	mutex := make(semaphore, N*N) // mutex pour la synchronisation
+
+// 	for i := 0; i < Threads; i++ { // Créer autant de go routines que de threads specifiés dans la constante plus haut
+// 		go consomme(jobs, mutex)
+// 	}
+
+// 	// Insérer dans le channel jobs des nouveaux Jobs venant de grid[]][]
+// 	for j := 0; j < N; j++ {
+// 		for i := 0; i < N; i++ {
+// 			jobs <- Job{i*10000000 + j*1000000, MinPts, eps, grid[i][j]}
+// 		}
+// 	}
+
+// 	close(jobs)
+
+// 	mutex.Wait(Threads) // wait for consumers to terminate
+
+// 	// Imprimer le temps d'exécution du programme et le nombre de points
+// 	end := time.Now()
+// 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
+
+// }
+
 func main() {
 
 	start := time.Now()
-	fmt.Println("N =", N, "and", Threads, "consumer threads \n ")
 
 	gps, minPt, maxPt := readCSVFile(filename)
 	fmt.Printf("Number of points: %d\n", len(gps))
@@ -105,30 +170,28 @@ func main() {
 		}
 	}
 
-	// Parallel DBSCAN STEP 2.
-	// Apply DBSCAN on each partition
-	jobs := make(chan Job, N*N)   // jobs est un channel de Job
-	mutex := make(semaphore, N*N) // mutex pour la synchronisation
-
-	for i := 0; i < Threads; i++ { // Créer autant de go routines que de threads specifiés dans la constante plus haut
-		go consomme(jobs, mutex)
-	}
-
-	// Insérer dans le channel jobs des nouveaux Jobs venant de grid[]][]
+	// ***
+	// This is the non-concurrent procedural version
+	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
+	// And by consumer threads that clusters partitions
 	for j := 0; j < N; j++ {
 		for i := 0; i < N; i++ {
-			jobs <- Job{i*10000000 + j*1000000, MinPts, eps, grid[i][j]}
+
+			DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
+			fmt.Print(grid[0][3][0].Label)
 		}
 	}
 
-	close(jobs)
+	// Parallel DBSCAN STEP 2.
+	// Apply DBSCAN on each partition
+	// ...
 
-	mutex.Wait(Threads) // wait for consumers to terminate
+	// Parallel DBSCAN step 3.
+	// merge clusters
+	// *DO NOT PROGRAM THIS STEP
 
-	// Imprimer le temps d'exécution du programme et le nombre de points
 	end := time.Now()
 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
-
 }
 
 // Fonction consomme modifiée à partir du fichier prodcons.go fourni
@@ -174,7 +237,7 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 
 		nclusters++ // Icrémenter le nombre de Clusters
 
-		p.Label = nclusters // Donner à p le nouveau nombre de Clusters
+		p.Label = nclusters // Donner à p le nouveau nombre de Clusters MAYBE DELETE THIS??
 
 		var seedSet []LabelledGPScoord
 		seedSet = append(seedSet, p)
@@ -184,6 +247,7 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 
 			if q.Label == -1 {
 				q.Label = nclusters
+				fmt.Println("label change")
 			}
 
 			if q.Label != 0 { // Si le point q n'est pas 0, alors il a déjà été visité.
@@ -197,6 +261,7 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 
 			if len(neighborsQ) >= MinPts {
 				seedSet = addNeighborstoSeedSet2(seedSet, neighborsQ) // ALTERNATE METHOD
+
 			}
 
 		}
@@ -211,14 +276,14 @@ func DBscan(coords []LabelledGPScoord, MinPts int, eps float64, offset int) (ncl
 }
 
 // Cette fonction ajoute les voisins de p au seedSet mais a une valeur de retour
-func addNeighborstoSeedSet2(seedSet []LabelledGPScoord, neighbors []LabelledGPScoord) []LabelledGPScoord {
+func addNeighborstoSeedSet2(seedSet []LabelledGPScoord, neighbors []*LabelledGPScoord) []LabelledGPScoord {
 
 	var r []LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
 
 	for _, p := range neighbors { // Itérer à travers neighbours
 
-		if !seedSetContainsP(seedSet, p) { // Si le seedSet ne contient pas p
-			r = append(seedSet, p) // Alors, ajouter p au seedSet
+		if !seedSetContainsP(seedSet, *p) { // Si le seedSet ne contient pas p
+			r = append(seedSet, *p) // Alors, ajouter p au seedSet
 		}
 
 	}
@@ -239,19 +304,19 @@ func seedSetContainsP(seedSet []LabelledGPScoord, p LabelledGPScoord) bool {
 }
 
 // Cette méthode détermine qui sont les points voisins d'un point
-func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []LabelledGPScoord {
+func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*LabelledGPScoord {
 
-	var neighbors []LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
+	var neighbors []*LabelledGPScoord // Créer une slice de TripRecord LabelledGPScoord
 
 	for _, p := range coords {
 
 		// if p.ID != q.ID && distance2(q.GPScoord, p.GPScoord) <= eps {
 		if distance2(q.GPScoord, p.GPScoord) <= eps {
-			neighbors = append(neighbors, p)
+			neighbors = append(neighbors, &p)
 		}
 
 	}
-	return neighbors // Retourner une liste de tous les voisins de q
+	return neighbors // neighbors // Retourner une liste de tous les voisins de q
 
 }
 
