@@ -1,5 +1,5 @@
 /* * Samy Touabi - 300184721
- * CSI2520 Projet intégrateur - Partie 1 (OOP avec Java)
+ * CSI2520 Projet intégrateur - Partie 2 (concurrence avec Go)
  * Date: Hiver 2022
  *
  * On vous demande de programmer l’algorithme DBSCAN afin de grouper les différents enregistrements
@@ -14,6 +14,7 @@
 // Project CSI2120/CSI2520
 // Winter 2022
 // Robert Laganiere, uottawa.ca
+// version 1.2
 
 package main
 
@@ -23,6 +24,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -59,7 +61,7 @@ type LabelledGPScoord struct {
 	Label int // cluster ID
 }
 
-const Threads int = 1
+const Threads int = 4
 const N int = 4
 const MinPts int = 5
 const eps float64 = 0.0003
@@ -73,12 +75,12 @@ func main() {
 	gps, minPt, maxPt := readCSVFile(filename)
 	fmt.Printf("Number of points: %d\n", len(gps))
 
-	minPt = GPScoord{-74., 40.7}
-	maxPt = GPScoord{-73.93, 40.8}
+	minPt = GPScoord{40.7, -74.}
+	maxPt = GPScoord{40.8, -73.93}
 
 	// geographical limits
-	fmt.Printf("NW:(%f , %f)\n", minPt.long, minPt.lat)
-	fmt.Printf("SE:(%f , %f) \n\n", maxPt.long, maxPt.lat)
+	fmt.Printf("SW:(%f , %f)\n", minPt.lat, minPt.long)
+	fmt.Printf("NE:(%f , %f) \n\n", maxPt.lat, maxPt.long)
 
 	// Parallel DBSCAN STEP 1.
 	incx := (maxPt.long - minPt.long) / float64(N)
@@ -105,8 +107,19 @@ func main() {
 		}
 	}
 
-// Parallel DBSCAN STEP 2.
-// Apply DBSCAN on each partition
+	// ***
+	// This is the non-concurrent procedural version
+	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
+	// And by consumer threads that clusters partitions
+	// for j := 0; j < N; j++ {
+	// 	for i := 0; i < N; i++ {
+
+	// 		DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
+	// 	}
+	// }
+
+	// Parallel DBSCAN STEP 2.
+	// Apply DBSCAN on each partition
 	jobs := make(chan Job, N*N)   // jobs est un channel de Job
 	mutex := make(semaphore, N*N) // mutex pour la synchronisation
 
@@ -125,74 +138,10 @@ func main() {
 
 	mutex.Wait(Threads) // wait for consumers to terminate
 
-	// Imprimer le temps d'exécution du programme et le nombre de points
 	end := time.Now()
 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
-
+	fmt.Printf("Number of CPUs: %d", runtime.NumCPU())
 }
-
-// func main() {
-//
-// 	start := time.Now()
-//
-// 	gps, minPt, maxPt := readCSVFile(filename)
-// 	fmt.Printf("Number of points: %d\n", len(gps))
-//
-// 	minPt = GPScoord{-74., 40.7}
-// 	maxPt = GPScoord{-73.93, 40.8}
-//
-// 	// geographical limits
-// 	fmt.Printf("NW:(%f , %f)\n", minPt.long, minPt.lat)
-// 	fmt.Printf("SE:(%f , %f) \n\n", maxPt.long, maxPt.lat)
-//
-// 	// Parallel DBSCAN STEP 1.
-// 	incx := (maxPt.long - minPt.long) / float64(N)
-// 	incy := (maxPt.lat - minPt.lat) / float64(N)
-//
-// 	var grid [N][N][]LabelledGPScoord // a grid of GPScoord slices
-//
-// 	// Create the partition
-// 	// triple loop! not very efficient, but easier to understand
-//
-// 	partitionSize := 0
-// 	for j := 0; j < N; j++ {
-// 		for i := 0; i < N; i++ {
-//
-// 			for _, pt := range gps {
-//
-// 				// is it inside the expanded grid cell
-// 				if (pt.long >= minPt.long+float64(i)*incx-eps) && (pt.long < minPt.long+float64(i+1)*incx+eps) && (pt.lat >= minPt.lat+float64(j)*incy-eps) && (pt.lat < minPt.lat+float64(j+1)*incy+eps) {
-//
-// 					grid[i][j] = append(grid[i][j], pt) // add the point to this slide
-// 					partitionSize++
-// 				}
-// 			}
-// 		}
-// 	}
-//
-// 	// ***
-// 	// This is the non-concurrent procedural version
-// 	// It should be replaced by a producer thread that produces jobs (partition to be clustered)
-// 	// And by consumer threads that clusters partitions
-// 	for j := 0; j < N; j++ {
-// 		for i := 0; i < N; i++ {
-//
-// 			DBscan(grid[i][j], MinPts, eps, i*10000000+j*1000000)
-// 			// fmt.Print(grid[0][3][0].Label)
-// 		}
-// 	}
-//
-// 	// Parallel DBSCAN STEP 2.
-// 	// Apply DBSCAN on each partition
-// 	// ...
-//
-// 	// Parallel DBSCAN step 3.
-// 	// merge clusters
-// 	// *DO NOT PROGRAM THIS STEP
-//
-// 	end := time.Now()
-// 	fmt.Printf("\nExecution time: %s of %d points\n", end.Sub(start), partitionSize)
-// }
 
 // Fonction consomme modifiée à partir du fichier prodcons.go fourni
 func consomme(jobs chan Job, sem semaphore) {
@@ -329,8 +278,8 @@ func rangeQuery(coords []LabelledGPScoord, eps float64, q LabelledGPScoord) []*L
 
 	for i := range coords {
 
-		// if coords[i].ID != q.ID && distance2(q.GPScoord, coords[i].GPScoord) <= eps {
-		if distance2(q.GPScoord, coords[i].GPScoord) <= eps {
+		if coords[i].ID != q.ID && distance2(q.GPScoord, coords[i].GPScoord) <= eps {
+			// if distance2(q.GPScoord, coords[i].GPScoord) <= eps {
 			neighbors = append(neighbors, &coords[i])
 		}
 
@@ -390,9 +339,8 @@ func readCSVFile(filename string) (coords []LabelledGPScoord, minPt GPScoord, ma
 		}
 
 		// get lattitude
-		lat, err := strconv.ParseFloat(record[8], 64)
+		lat, err := strconv.ParseFloat(record[9], 64)
 		if err != nil {
-			fmt.Printf("\n%d lat=%s\n", n, record[8])
 			panic("Data format error (lat)...")
 		}
 
@@ -405,7 +353,7 @@ func readCSVFile(filename string) (coords []LabelledGPScoord, minPt GPScoord, ma
 		}
 
 		// get longitude
-		long, err := strconv.ParseFloat(record[9], 64)
+		long, err := strconv.ParseFloat(record[8], 64)
 		if err != nil {
 			panic("Data format error (long)...")
 		}
