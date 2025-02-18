@@ -1,7 +1,5 @@
 # Concurrent programming (Go)
 
-URL to the original repository I made: https://github.com/kienmarkdo/Taxi-Geolocation-Clustering-DBSCAN
-
 In this Go version of the comprehensive project, the [DBSCAN algorithm](https://en.wikipedia.org/wiki/DBSCAN) is run concurrently on partitions of the Trip Record data. The partitions are created by dividing the geographical area into a grid of NxN. The following figure illustrates the case of a partition made of 4x4 cells (NOTE: In this case, the DBSCAN algorithm would run on 16 concurrent threads):
 
 <p align="center">
